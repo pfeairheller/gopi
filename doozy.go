@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/garyburd/redigo/redis"
-	"encoding/json"
+	"github.com/pfeairheller/gopi"
 )
 
 type Student struct {
@@ -33,13 +33,22 @@ func waitForGoopie() {
 			fmt.Println("Opps", err)
 		}
 
-		var student Student
-		err = json.Unmarshal(n[1].([]byte), &student)
-		if err != nil {
-			fmt.Println("error extracting", err)
-		}
-		fmt.Println(i, student.FirstName)
+		job := &gopi.Job {n[1].([]byte)}
+		workerHandler(job)
+		fmt.Println(i)
 	}
 
+}
+
+func workerHandler(job *gopi.Job) error {
+	var student Student
+	err := job.Value(&student)
+	if err != nil {
+		fmt.Println("error extracting", err)
+		return err
+	}
+
+	fmt.Println(student)
+	return nil;
 }
 

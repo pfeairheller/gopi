@@ -7,9 +7,11 @@
  */
 package gopi
 
+import "errors"
+
 type Worker struct {
-
-
+	funcs JobFuncs
+	IsRunning bool
 }
 
 type JobHandler func(*Job) error
@@ -26,7 +28,41 @@ type jobFunc struct {
 type JobFuncs map[string]*jobFunc
 
 
+func NewWorker() (w *Worker) {
+	w = new(Worker)
+	w.funcs = make(JobFuncs)
+	w.IsRunning = false
+	return w
+
+}
+
 func (w *Worker) AddServer(addr string) (err error) {
 	return nil
+}
+
+func (w *Worker) AddFunc(funcname string, f JobFunc) (err error) {
+	if _, ok := w.funcs[funcname]; ok {
+		return errors.New("The function already exists: "+ funcname)
+	}
+	w.funcs[funcname] = &jobFunc{f: f, timeout: w}
+
+//  if w.running {
+//      w.addFunc(funcname, timeout)
+//  }
+	return
+
+}
+
+func (w *Worker) RemoveFunc(funcname string) (err error) {
+	if _, ok := w.funcs[funcname]; ok {
+		return errors.New("The function does not exist: "+ funcname)
+	}
+	delete (w.funcs, funcname)
+
+//	if worker.running {
+//     worker.removeFunc(funcname)
+//	}
+	return
+
 }
 

@@ -7,9 +7,15 @@
  */
 package gopi
 
+import "encoding/json"
+
 
 type Job struct {
 	Data []byte
+}
+
+func (job *Job) Value(target interface{}) (err error) {
+	return json.Unmarshal(job.Data, target)
 }
 
 
