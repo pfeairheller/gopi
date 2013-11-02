@@ -1,4 +1,4 @@
-package main
+package gopi
 
 import (
 	"fmt"
@@ -12,19 +12,12 @@ type Student struct {
 }
 
 func main() {
-	waitForGoopie()
+	waitForGopi()
 }
 
 
-func waitForGoopie() {
+func waitForGopi() {
 	fmt.Println("Starting")
-	c, err := redis.Dial("tcp", ":6379")
-	if err != nil {
-		fmt.Println("Opps", err)
-		panic(err)
-		// handle error
-	}
-	defer c.Close()
 
 	i:= 0
 	for ;;i++{
@@ -49,6 +42,6 @@ func workerHandler(job *gopi.Job) error {
 	}
 
 	fmt.Println(student)
-	return nil;
+	return nil
 }
 

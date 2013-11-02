@@ -11,6 +11,7 @@ import "errors"
 
 type Worker struct {
 	funcs JobFuncs
+	servers []string
 	IsRunning bool
 }
 
@@ -37,7 +38,14 @@ func NewWorker() (w *Worker) {
 }
 
 func (w *Worker) AddServer(addr string) (err error) {
-	return nil
+	agent, err := newAgent(addr, w)
+	if err != nil {
+		return
+	}
+
+	w.agents = append(w.agents, agent)
+
+	return
 }
 
 func (w *Worker) AddFunc(funcname string, f JobFunc) (err error) {
