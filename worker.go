@@ -74,3 +74,32 @@ func (w *Worker) RemoveFunc(funcname string) (err error) {
 
 }
 
+func (w *Worker) Work() {
+	for name, f := range w.funcs{
+		c, err := redis.Dial("tcp", w.addr)
+		if err != nil {
+			fmt.Println("Opps", err)
+			panic(err)
+			// handle error
+		}
+		defer c.Close()
+
+		c := make(chan []byte)
+		for i := 0; i < numberWorkers; i++ {
+			go listen(c, f)
+		}
+
+		for {
+			n, err := redis.Values(c.Do("BLPOP", name, 0))
+			if err != nil {
+				fmt.Println("Opps", err)
+				continue
+			}
+			c <- n[1].([]byte)
+		}
+	}
+
+}
+
+
+
