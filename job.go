@@ -11,11 +11,16 @@ import "encoding/json"
 
 
 type Job struct {
+	Fn string
 	Data []byte
 }
 
 func (job *Job) Value(target interface{}) (err error) {
 	return json.Unmarshal(job.Data, target)
+}
+
+func (job *Job) Close() {
+
 }
 
 

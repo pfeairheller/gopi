@@ -9,6 +9,7 @@ package gopi
 
 import (
 	"errors"
+	_ "fmt"
 )
 
 const (
@@ -24,6 +25,7 @@ type Worker struct {
 	in chan *Job
 	IsRunning bool
 	ErrHandler func(error)
+	JobHandler JobHandler
 }
 
 type JobHandler func(*Job) error
@@ -94,6 +96,7 @@ func (w *Worker) Work() {
 		}
 	}()
 	w.IsRunning = true
+
 	for _, v := range w.agents {
 		go v.Work()
 	}
@@ -116,7 +119,7 @@ func (w *Worker) dealJob(job *Job) {
 
 		if w.JobHandler != nil {
 			if err := w.JobHandler(job); err != nil {
-				w.err(err)
+				w.ErrHandler(err)
 			}
 		}
 	}

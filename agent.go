@@ -10,6 +10,7 @@ package gopi
 import (
 	"github.com/garyburd/redigo/redis"
 	"fmt"
+	"strings"
 )
 
 
@@ -53,8 +54,9 @@ func (a *agent) Work() {
 
 	var names []interface{}
 	for name, jobfunc := range a.worker.funcs {
-		names = append(names, name)
+		names = append(names, "gopi:queue:" + name)
 		for i := 0; i < jobfunc.numberOfWorkers; i++ {
+			fmt.Println("listening at ", jobfunc.c)
 			go listen(jobfunc.c, jobfunc.f)
 		}
 
@@ -68,7 +70,8 @@ func (a *agent) Work() {
 			continue
 		}
 		name := string(n[0].([]byte))
-		a.worker.funcs[name].c <- n[1].([]byte)
+		fmt.Println("sending to ", a.worker.funcs[strings.Split(name, ":")[2]].c)
+		a.worker.funcs[strings.Split(name, ":")[2]].c <- n[1].([]byte)
 	}
 }
 
