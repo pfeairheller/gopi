@@ -7,12 +7,23 @@
  */
 package gopi
 
-import "errors"
+import (
+	"errors"
+)
+
+const (
+    Unlimited = 0
+    OneByOne = 1
+	QueueSize = 8
+    Immediately = 0
+)
 
 type Worker struct {
 	funcs JobFuncs
-	servers []string
+	agents []*agent
+	in chan *Job
 	IsRunning bool
+	ErrHandler func(error)
 }
 
 type JobHandler func(*Job) error
@@ -22,7 +33,8 @@ type JobFunc func(*Job) ([]byte, error)
 // The definition of the callback function.
 type jobFunc struct {
     f JobFunc
-    timeout uint32
+    numberOfWorkers int
+	c chan []byte
 }
 
 // Map for added function.
@@ -33,6 +45,7 @@ func NewWorker() (w *Worker) {
 	w = new(Worker)
 	w.funcs = make(JobFuncs)
 	w.IsRunning = false
+	w.in = make(chan *Job, QueueSize)
 	return w
 
 }
@@ -48,11 +61,11 @@ func (w *Worker) AddServer(addr string) (err error) {
 	return
 }
 
-func (w *Worker) AddFunc(funcname string, f JobFunc) (err error) {
+func (w *Worker) AddFunc(funcname string, f JobFunc, numberOfWorkers int) (err error) {
 	if _, ok := w.funcs[funcname]; ok {
 		return errors.New("The function already exists: "+ funcname)
 	}
-	w.funcs[funcname] = &jobFunc{f: f, timeout: w}
+	w.funcs[funcname] = &jobFunc{f: f, numberOfWorkers: numberOfWorkers, c: make(chan []byte)}
 
 //  if w.running {
 //      w.addFunc(funcname, timeout)
@@ -75,31 +88,50 @@ func (w *Worker) RemoveFunc(funcname string) (err error) {
 }
 
 func (w *Worker) Work() {
-	for name, f := range w.funcs{
-		c, err := redis.Dial("tcp", w.addr)
-		if err != nil {
-			fmt.Println("Opps", err)
-			panic(err)
-			// handle error
+	defer func() {
+		for _, v := range w.agents {
+			v.Close()
 		}
-		defer c.Close()
+	}()
+	w.IsRunning = true
+	for _, v := range w.agents {
+		go v.Work()
+	}
 
-		c := make(chan []byte)
-		for i := 0; i < numberWorkers; i++ {
-			go listen(c, f)
+	ok := true
+	for ok {
+		var job *Job
+		if job, ok = <-w.in; ok {
+			go w.dealJob(job)
 		}
+	}
+}
 
-		for {
-			n, err := redis.Values(c.Do("BLPOP", name, 0))
-			if err != nil {
-				fmt.Println("Opps", err)
-				continue
+func (w *Worker) dealJob(job *Job) {
+    defer func() {
+        job.Close()
+    }()
+
+	if err := w.exec(job); err != nil {
+
+		if w.JobHandler != nil {
+			if err := w.JobHandler(job); err != nil {
+				w.err(err)
 			}
-			c <- n[1].([]byte)
 		}
 	}
 
 }
 
+func (worker *Worker) exec(job *Job) (err error) {
+	f, ok := worker.funcs[job.Fn]
+	if !ok {
+		return errors.New("The function does not exist: " + job.Fn)
+	}
+
+	f.f(job)
+
+	return
+}
 
 
