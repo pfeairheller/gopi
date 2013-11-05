@@ -8,7 +8,7 @@ func main() {
 
 	c := make(chan []byte)
 	for i := 0; i < num; i++ {
-		go listen(c, nil)
+		go listen(c, "", nil)
 	}
 
 

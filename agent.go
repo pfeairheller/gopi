@@ -53,11 +53,12 @@ func (a *agent) Work() {
 	defer c.Close()
 
 	var names []interface{}
+	fmt.Println(a.worker.funcs)
 	for name, jobfunc := range a.worker.funcs {
 		names = append(names, "gopi:queue:" + name)
 		for i := 0; i < jobfunc.numberOfWorkers; i++ {
 			fmt.Println("listening at ", jobfunc.c)
-			go listen(jobfunc.c, jobfunc.f)
+			go listen(jobfunc.c, name, jobfunc.f)
 		}
 
 	}
@@ -69,15 +70,16 @@ func (a *agent) Work() {
 			fmt.Println("Opps", err)
 			continue
 		}
-		name := string(n[0].([]byte))
-		fmt.Println("sending to ", a.worker.funcs[strings.Split(name, ":")[2]].c)
-		a.worker.funcs[strings.Split(name, ":")[2]].c <- n[1].([]byte)
+		queuename := string(n[0].([]byte))
+		name := strings.Split(queuename, ":")[2]
+		a.worker.funcs[name].c <- n[1].([]byte)
 	}
 }
 
-func listen(c chan []byte, f JobFunc) {
+func listen(c chan []byte, name string, f JobFunc) {
 	for data := range c {
-		fmt.Println(data, "at proc")
+		job := &Job{Fn: name, Data: data}
+		f(job)
 	}
 }
 
