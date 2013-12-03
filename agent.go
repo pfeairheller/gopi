@@ -11,75 +11,85 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"fmt"
 	"strings"
+	"bytes"
 )
 
 
 type agent struct {
-	worker *Worker
-	conn redis.Conn
+	eb *Worker
+	inconn redis.Conn
+	outconn redis.Conn
 	addr string
-	in chan []byte
-	out chan *Job
+	in chan  []byte
+	out chan []byte
 }
 
+
 // Create the agent of job server.
-func newAgent(addr string, worker *Worker) (a *agent, err error) {
-    conn, err := redis.Dial("tcp", addr)
+func newAgent(addr string, eb *Worker) (a *agent, err error) {
+    inconn, err := redis.Dial("tcp", addr)
     if err != nil {
         return
     }
+	outconn, err := redis.Dial("tcp", addr)
+	if err != nil {
+     return
+ }
 
 	a = &agent{
-        conn:   conn,
-        worker: worker,
+        inconn:   inconn,
+        outconn:   outconn,
+        eb: eb,
         addr:   addr,
         in:     make(chan []byte, 8),
-        out:    make(chan *Job, 8),
+        out:    make(chan []byte, 8),
     }
 	return
 }
 
 func (a *agent) Close() {
-	a.conn.Close()
+	a.inconn.Close()
+	a.outconn.Close()
 }
 
 func (a *agent) Work() {
-	c, err := redis.Dial("tcp", a.addr)
-	if err != nil {
-		fmt.Println("Opps", err)
-		panic(err)
-		// handle error
-	}
-	defer c.Close()
-
 	var names []interface{}
-	fmt.Println(a.worker.funcs)
-	for name, jobfunc := range a.worker.funcs {
+	fmt.Println(a.eb.funcs)
+	for name, jobfunc := range a.eb.funcs {
 		names = append(names, "gopi:queue:" + name)
 		for i := 0; i < jobfunc.numberOfWorkers; i++ {
 			fmt.Println("listening at ", jobfunc.c)
-			go listen(jobfunc.c, name, jobfunc.f)
+			go a.listen(jobfunc.c, name, jobfunc.f)
 		}
 
 	}
 	names = append(names, 0)
 
 	for {
-		n, err := redis.Values(c.Do("BLPOP", names...))
+		n, err := redis.Values(a.inconn.Do("BRPOP", names...))
 		if err != nil {
 			fmt.Println("Opps", err)
 			continue
 		}
 		queuename := string(n[0].([]byte))
 		name := strings.Split(queuename, ":")[2]
-		a.worker.funcs[name].c <- n[1].([]byte)
+		a.eb.funcs[name].c <- n[1].([]byte)
 	}
 }
 
-func listen(c chan []byte, name string, f JobFunc) {
+func (a *agent)listen(c chan []byte, name string, f JobFunc) {
 	for data := range c {
-		job := &Job{Fn: name, Data: data}
-		f(job)
+		vals := bytes.SplitN(data, []byte("/"), 2)
+		job := &Job{Fn: name, Target: string(vals[0]), Data: vals[1]}
+		result, err := f(job)
+
+		if err != nil {
+			fmt.Println("error", err)
+			//handle error
+		}
+
+		returnQueueName := "gopi:queue:" + string(vals[0])
+		a.outconn.Do("LPUSH", returnQueueName, result)
 	}
 }
 

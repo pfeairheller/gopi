@@ -13,6 +13,7 @@ import "encoding/json"
 type Job struct {
 	Fn string
 	Data []byte
+	Target string
 }
 
 func (job *Job) Value(target interface{}) (err error) {
